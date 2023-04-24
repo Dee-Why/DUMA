@@ -4,15 +4,18 @@ import torch.nn.functional as F
 import transformers
 from torch.utils.data import DataLoader, Dataset, TensorDataset
 from transformers import BertTokenizer, BertModel, BertConfig, BertForMultipleChoice
-from transformers import AdamW, get_linear_schedule_with_warmup
+from transformers import get_linear_schedule_with_warmup  # , AdamW
 from transformers import logging
 from torch.nn import CrossEntropyLoss, MultiheadAttention
+from torch.optim import AdamW
 import numpy as np
 import datetime
 import random
 import json
 import csv
 import re
+
+
 def separate_seq2(sequence_output, flat_input_ids):
     qa_seq_output = sequence_output.new(sequence_output.size()).zero_()
     qa_mask = torch.ones((sequence_output.shape[0], sequence_output.shape[1]),
@@ -22,7 +25,7 @@ def separate_seq2(sequence_output, flat_input_ids):
     p_mask = torch.ones((sequence_output.shape[0], sequence_output.shape[1]),
                         device=sequence_output.device,
                         dtype=torch.bool)
-    for i in range(flat_input_ids.size(0)):
+    for i in range(flat_input_ids.size(0)):  # 这个是input
         sep_lst = []
         for idx, e in enumerate(flat_input_ids[i]):
             if e == 2:
@@ -31,9 +34,10 @@ def separate_seq2(sequence_output, flat_input_ids):
         qa_seq_output[i, :sep_lst[0] - 1] = sequence_output[i, 1:sep_lst[0]]
         qa_mask[i, :sep_lst[0] - 1] = 0
         p_seq_output[i, :sep_lst[1] - sep_lst[0] -
-                     1] = sequence_output[i, sep_lst[0] + 1: sep_lst[1]]
+                         1] = sequence_output[i, sep_lst[0] + 1: sep_lst[1]]
         p_mask[i, :sep_lst[1] - sep_lst[0] - 1] = 0
     return qa_seq_output, p_seq_output, qa_mask, p_mask
+
 
 class BertPooler(nn.Module):
     def __init__(self, config):
@@ -49,6 +53,7 @@ class BertPooler(nn.Module):
         pooled_output = self.activation(pooled_output)
         return pooled_output
 
+
 class DUMALayer(nn.Module):
     def __init__(self, d_model_size, num_heads):
         super(DUMALayer, self).__init__()
@@ -56,7 +61,8 @@ class DUMALayer(nn.Module):
         self.attn_p = MultiheadAttention(d_model_size, num_heads)
 
     def forward(self, qa_seq_representation, p_seq_representation, qa_mask=None, p_mask=None):
-        qa_seq_representation = qa_seq_representation.permute([1, 0, 2])
+        qa_seq_representation = qa_seq_representation.permute(
+            [1, 0, 2])  # attention需要的输入尺寸为 sequence length, batch_size, d_model size
         p_seq_representation = p_seq_representation.permute([1, 0, 2])
         enc_output_qa, _ = self.attn_qa(
             value=qa_seq_representation, key=qa_seq_representation, query=p_seq_representation, key_padding_mask=qa_mask
@@ -75,8 +81,8 @@ class DUMA(nn.Module):
         self.bert.gradient_checkpointing_enable()
         self.duma = DUMALayer(d_model_size=self.config.hidden_size,
                               num_heads=self.config.num_attention_heads)
-        self.pooler=BertPooler(config)
-        self.dropout = nn.Dropout(0.5) 
+        self.pooler = BertPooler(config)
+        self.dropout = nn.Dropout(0.5)
         self.classifier = nn.Linear(self.config.hidden_size, 1)
         self.num_labels = num_labels
 
@@ -101,20 +107,20 @@ class DUMA(nn.Module):
                 logits += self.classifier(dropout(pooled_output))
         logits = logits / len(self.dropouts)
         """
-        pooled_output=self.pooler(fused_output)
-        #pooled_output = torch.mean(fused_output, dim=1)
-        droped_output =self.dropout(pooled_output)
-        #linear_output=self.classifier_0(pooled_output)
+        pooled_output = self.pooler(fused_output)
+        droped_output = self.dropout(pooled_output)
         logits = self.classifier(droped_output)
-        #logits = self.classifier(pooled_output)
+        # print("logits.shape:",logits.shape, "self.num_labels:", self.num_labels) # torch[160,1]
         reshaped_logits = F.softmax(logits.view(-1, self.num_labels), dim=1)
+        # print(reshaped_logits.shape) # torch.Size([32, 5])
+        # print(reshaped_logits) # 每一行的和为0，并且非负，是概率分布
         return reshaped_logits
 
 
 class DUMABert():
     def __init__(self, train_path, validation_path, vocab_path, model_path, wiki_path,
                  device, gpu, choices, max_len, train_batch_size, test_batch_size,
-                 learning_rate, epsilon, epoches, save_model_path,random_seed, config_path=None):
+                 learning_rate, epsilon, epoches, save_model_path, random_seed, config_path=None):
 
         self.device = device
         self.gpu = gpu
@@ -158,22 +164,20 @@ class DUMABert():
         for line in file_lines:
             label = int(line[6])
             text = str(line[0])
-            re_match=re.match(r'(.*)（(.*)）',text)
-            passage=re_match.group(1)
-            hint=str(re_match.group(2))+'?'
+            re_match = re.match(r'(.*)（(.*)）', text)
+            passage = re_match.group(1)
+            hint = str(re_match.group(2)) + '?'
             wiki_choices = []
             for j in range(self.num_labels):
-                choice_text = str(line[j+1])  # 文本选项
+                choice_text = str(line[j + 1])  # 文本选项
                 choice_wiki = self.wiki_dicts[choice_text]  # 将选项定向到wiki文本解释
-                wiki_choices.append(hint+choice_text)
+                wiki_choices.append(hint + choice_text)
             # 将问题重复num_labels次
             content = [passage for i in range(self.num_labels)]
             pairs = (content, wiki_choices)
             text_list.append(pairs)
             labels.append(label)
         return text_list, labels
-
-
 
     def encode_fn(self, text_list, labels):
         input_ids, token_type_ids, attention_mask = [], [], []
@@ -191,13 +195,14 @@ class DUMABert():
         attention_mask = torch.tensor(attention_mask)
         # print(input_ids[3].data)#测试用
         return TensorDataset(input_ids, token_type_ids, attention_mask, labels)
+
     # 加载训练数据or测试数据
 
     def load_data(self, path, Test=None):
         text_list, labels = self.read_file(path)
         Data = DataLoader(self.encode_fn(text_list, labels),
                           batch_size=self.train_batch_size if not Test else self.test_batch_size,
-                          shuffle=False if Test else True,num_workers=8)  # 处理成多个batch的形式
+                          shuffle=False if Test else True, num_workers=2)  # 处理成多个batch的形式
         return Data
 
     def train_model(self):
@@ -205,7 +210,7 @@ class DUMABert():
             self.model.to(self.device)
         optimizer = AdamW(filter(lambda p: p.requires_grad, self.model.parameters(
         )), lr=self.learning_rate, eps=self.epsilon)
-        #filter(lambda p: p.requires_grad, self.model.parameters())
+        # filter(lambda p: p.requires_grad, self.model.parameters())
         epoches = self.epoches
         trainData = self.train_data
         testData = self.validation_data
@@ -222,14 +227,16 @@ class DUMABert():
             test_loss = 0.0
             test_accuracy = 0.0
             train_accuracy = 0.0
-            print('Epoch: ', epoch+1)
+            print('Epoch: ', epoch + 1)
             for step, batch in enumerate(trainData):
                 self.model.zero_grad()
 
-                input_ids = batch[0].view(-1, batch[0].size(-1)) 
-                attention_mask = batch[1].view(-1, batch[1].size(-1)) 
-                token_type_ids = batch[2].view(-1, batch[2].size(-1)) 
-                
+                # print(batch.shape)
+
+                input_ids = batch[0].view(-1, batch[0].size(-1))
+                attention_mask = batch[1].view(-1, batch[1].size(-1))
+                token_type_ids = batch[2].view(-1, batch[2].size(-1))
+
                 labels = batch[3].to(self.device)
                 logits = self.model(input_ids=input_ids.to(self.device),
                                     token_type_ids=attention_mask.to(self.device),
@@ -247,21 +254,21 @@ class DUMABert():
                 logits = logits.detach()
                 every_train_accuracy = self.model_accuracy(logits, labels)
                 train_accuracy += every_train_accuracy
-                if step % 100 == 0 and step > 0:
+                if step % 50 == 0 and step > 0:
                     print('step:', step)
-                    print(f'Accuracy: {train_accuracy/(step+1):.4f}')
+                    print(f'Accuracy: {train_accuracy / (step + 1):.4f}')
             t1 = datetime.datetime.now()
-            print(f'Up to Epoch{epoch+1} Time: {t1-t0}')
-            avg_train_loss = train_loss/len(trainData)
+            print(f'Up to Epoch{epoch + 1} Time: {t1 - t0}')
+            avg_train_loss = train_loss / len(trainData)
             print('Train loss: ', avg_train_loss)
-            print('Train acc: ', train_accuracy/len(trainData))
+            print('Train acc: ', train_accuracy / len(trainData))
 
             self.model.eval()
             for k, test_batch in enumerate(testData):
                 with torch.no_grad():
-                    input_ids = test_batch[0].view(-1, test_batch[0].size(-1)) 
-                    attention_mask = test_batch[1].view(-1, test_batch[1].size(-1)) 
-                    token_type_ids = test_batch[2].view(-1, test_batch[1].size(-1)) 
+                    input_ids = test_batch[0].view(-1, test_batch[0].size(-1))
+                    attention_mask = test_batch[1].view(-1, test_batch[1].size(-1))
+                    token_type_ids = test_batch[2].view(-1, test_batch[1].size(-1))
                     labels = test_batch[3].to(self.device)
                     logits = self.model(input_ids=input_ids.to(self.device),
                                         token_type_ids=attention_mask.to(self.device),
@@ -272,13 +279,13 @@ class DUMABert():
                     logits = logits.detach()
                     test_accuracy += self.model_accuracy(logits, labels)
 
-            avg_test_loss = test_loss/len(testData)
-            avg_test_acc = test_accuracy/len(testData)
+            avg_test_loss = test_loss / len(testData)
+            avg_test_acc = test_accuracy / len(testData)
             print('Test--------------')
             print('Test loss: ', avg_test_loss)
             print('Test acc: ', avg_test_acc)
-            if epoch==0:
-                Epoch_avg_test_acc=avg_test_acc
+            if epoch == 0:
+                Epoch_avg_test_acc = avg_test_acc
             """
             if avg_test_acc>0.5:
                 #保存模型
@@ -287,23 +294,57 @@ class DUMABert():
 
         print('训练结束！')
         t2 = datetime.datetime.now()
-        print(f'Total time: {t2-t0}')
+        print(f'Total time: {t2 - t0}')
         return Epoch_avg_test_acc
 
-    def save_model(self, times):
-        self.model.bert.save_pretrained(self.save_model_path+str(times)+'/')
-        self.Tokenizer.save_pretrained(self.save_model_path+str(times)+'/')
-        torch.save(self.model, self.save_model_path+str(times)+'/')
+    def test_model(self):
+        if self.gpu:
+            self.model.to(self.device)
+        testData = self.validation_data
+        loss_Func = nn.CrossEntropyLoss()
+        test_loss = 0.0
+        test_accuracy = 0.0
+        self.model.eval()
+        for k, test_batch in enumerate(testData):
+            with torch.no_grad():
+                input_ids = test_batch[0].view(-1, test_batch[0].size(-1))
+                attention_mask = test_batch[1].view(-1, test_batch[1].size(-1))
+                token_type_ids = test_batch[2].view(-1, test_batch[1].size(-1))
+                labels = test_batch[3].to(self.device)
+                logits = self.model(input_ids=input_ids.to(self.device),
+                                    token_type_ids=attention_mask.to(self.device),
+                                    attention_mask=token_type_ids.to(self.device),
+                                    )
+                loss = loss_Func(logits, labels)
+                test_loss += loss.item()
+                logits = logits.detach()
+                test_accuracy += self.model_accuracy(logits, labels)
+
+        avg_test_loss = test_loss / len(testData)
+        avg_test_acc = test_accuracy / len(testData)
+        print('Test--------------')
+        print('Test loss: ', avg_test_loss)
+        print('Test acc: ', avg_test_acc)
+
+    def save_model(self, index):
+        self.model.bert.save_pretrained(self.save_model_path + str(index) + '/' + 'bert.sav')
+        self.Tokenizer.save_pretrained(self.save_model_path + str(index) + '/' + 'tokenizer.sav')
+        torch.save(self.model, self.save_model_path + str(index) + '/' + 'model.sav')
         # model.save_pretrained(FIlE_PATH+'/Bert_Model/'+'-'+str(epoch))
         # tokenizer.save_pretrained((FIlE_PATH+'/Bert_Model/'+'-'+str(epoch)))
+
+    def load_model(self, index):
+        self.model = torch.load(self.save_model_path + str(index) + '/' + 'model.sav')
+        self.model.bert = BertModel.from_pretrained(self.save_model_path + str(index) + '/' + 'bert.sav')
+        self.Tokenizer = BertTokenizer.from_pretrained(self.save_model_path + str(index) + '/' + 'tokenizer.sav')
 
     def val_model(self):
         pass
 
     def model_accuracy(self, logits, labels):
         eq_logits = torch.eq(torch.max(logits, dim=1)[
-                             1], labels.flatten()).float()
-        acc = eq_logits.sum().item()/len(eq_logits)
+                                 1], labels.flatten()).float()
+        acc = eq_logits.sum().item() / len(eq_logits)
         return acc
 
     def test_accuracy(self, logits, labels, input_ids, Error_File):
@@ -313,16 +354,21 @@ class DUMABert():
             if predict_labels[i] == labels[i]:
                 acc_sum += 1.
             else:
-                print(str(predict_labels[i])+'  '+str(
-                    self.Tokenizer.convert_ids_to_tokens(input_ids[i])+'\n'), file=Error_File)
+                print(str(predict_labels[i]) + '  ' + str(
+                    self.Tokenizer.convert_ids_to_tokens(input_ids[i]) + '\n'), file=Error_File)
 
 
 if __name__ == '__main__':
     logging.set_verbosity_error()  # 只保留报错信息，而无warning信息
+    continue_training_on_index = None  # 这个是设定继续在那个版本的基础上继续训练
+    save_index = 18  # 本次训练结果的版本号
+    epochs = 6  # 一次 train 的 epoch数量
+    learning_rates = [3e-5, 3e-6, 1e-6]
+    seed = [11, ]
     model_file = ''
-    trained_model_file = './Bert-base-trained_model/'
+    trained_model_file = './Bert-base-trained_model'
     model_name = '/Bert-RobertA/'
-    data_file = './train/'
+    data_file = '/kaggle/input/chineseriddle/'
 
     # Error_File_Name='./Error-Results.txt'
     # Error_File=open(Error_File_Name,'w')
@@ -331,149 +377,50 @@ if __name__ == '__main__':
     if torch.cuda.is_available():
         gpu = True
     device = torch.device(f'cuda:{1}' if torch.cuda.is_available() else 'cpu')
-    seed = [11, 12, 13]
-    learning_rates = [9e-5, 1e-4, 1e-4+1e-5]
-    j=0
-    while(j<3):
-        tri_avg_test_acc=0.0
-        i=0
-        while(i<3):
-            bert_model = DUMABert(
-                train_path=data_file+'train.csv',
-                validation_path=data_file+'val.csv',
-                config_path=None,  # model_file+'/bert_config.json',
-                vocab_path='nghuyong/ernie-1.0',  # model_file+'/vocab.txt'
-                model_path='nghuyong/ernie-1.0',  # model_file+'/bert_model.bin'
-                wiki_path=data_file+'wiki_info_v3.json',
-                device=device,
-                gpu=gpu,
-                choices=5,
-                max_len=256,
-                train_batch_size=32,
-                test_batch_size=32,
-                learning_rate=learning_rates[j],
-                epsilon=1e-8,
-                epoches=3,
-                random_seed=seed[i],
-                save_model_path=trained_model_file+model_name,
-            )
-            print('train_batch_size ',bert_model.train_batch_size)
-            print('learning_rate    ',bert_model.learning_rate)
-            print('seed ',seed[i])
-            tri_avg_test_acc+=bert_model.train_model()
-            i+=1
-        print('tri_avg_test_acc ',tri_avg_test_acc/3)
-        j+=1
-"""
-DUMA Model
-'nghuyong/ernie-1.0'
-max_len=256,
-train_batch_size=16,
-test_batch_size=16,
-learning_rate=6e-5,
-Every epoch have 250 steps.
-Epoch:  1
-step: 100
-Accuracy: 0.4802
-step: 200
-Accuracy: 0.5177
-Up to Epoch1 Time: 0:10:36.416801
-Train loss:  1.3710225167274475
-Train acc:  0.538
-Test--------------
-Test loss:  1.3470525406301022
-Test acc:  0.556640625
-Epoch:  2
-step: 100
-Accuracy: 0.6850
-step: 200
-Accuracy: 0.6962
-Up to Epoch2 Time: 0:21:47.589869
-Train loss:  1.2004402513504029
-Train acc:  0.7015
-Test--------------
-Test loss:  1.3773974142968655
-Test acc:  0.525390625
 
+    tri_avg_test_acc = 0.0
+    bert_model = DUMABert(
+        train_path=data_file + 'train.csv',
+        validation_path=data_file + 'val.csv',
+        config_path=None,  # model_file+'/bert_config.json',
+        vocab_path='nghuyong/ernie-1.0',  # model_file+'/vocab.txt'
+        model_path='nghuyong/ernie-1.0',  # model_file+'/bert_model.bin'
+        wiki_path=data_file + 'wiki_info_v3.json',
+        device=device,
+        gpu=gpu,
+        choices=5,
+        max_len=256,
+        train_batch_size=16,
+        test_batch_size=16,
+        learning_rate=learning_rates[0],
+        epsilon=1e-8,
+        epoches=epochs,
+        random_seed=seed[0],
+        save_model_path=trained_model_file + model_name,
+    )
 
-you num_workers
-Every epoch have 250 steps.
-Epoch:  1
-step: 100
-Accuracy: 0.4802
-step: 200
-Accuracy: 0.5177
-Up to Epoch1 Time: 0:10:36.416801
-Train loss:  1.3710225167274475
-Train acc:  0.538
-Test--------------
-Test loss:  1.3470525406301022
-Test acc:  0.556640625
+    torch.cuda.empty_cache()
+    # 加载上一次训练的结果数据
+    if continue_training_on_index is not None:
+        print('loading model ' + str(continue_training_on_index))
+        bert_model.load_model(continue_training_on_index)
+        bert_model.model.bert.gradient_checkpointing_enable()
 
-DUMA Model
-'nghuyong/ernie-1.0'
-max_len=256,
-train_batch_size=16,
-test_batch_size=16,
-learning_rate=3e-5,
-Epoch:  3
-step: 100
-Accuracy: 0.7351
-step: 200
-Accuracy: 0.7441
-Up to Epoch3 Time: 0:41:24.260473
-Train loss:  1.1650065503120421
-Train acc:  0.74175
-Test--------------
-Test loss:  1.303547166287899
-Test acc:  0.59765625
+    # 训练过程
+    print('train_batch_size ', bert_model.train_batch_size)
+    print('learning_rate    ', bert_model.learning_rate)
+    print('seed ', seed[0])
+    bert_model.train_model()
+    print('-' * 20, 'weight decay', '-' * 20)
+    bert_model.epoches = 6
+    bert_model.learning_rate = learning_rates[1]
+    bert_model.train_model()
+    print('-' * 20, 'weight decay', '-' * 20)
+    bert_model.learning_ratelea = learning_rates[2]
+    bert_model.train_model()
 
-DUMA Model+pooler
-'nghuyong/ernie-1.0'
-max_len=256,
-train_batch_size=16,
-test_batch_size=16,
-learning_rate=3e-5,
-Epoch:  1
-Up to Epoch1 Time: 0:12:57.225121
-Train loss:  1.3917700653076173
-Train acc:  0.522
-Test--------------
-Test loss:  1.3052873648703098
-Test acc:  0.615234375
-Epoch:  2
-Up to Epoch2 Time: 0:26:45.327771
-Train loss:  1.2221286175251007
-Train acc:  0.68625
-Test--------------
-Test loss:  1.2774858176708221
-Test acc:  0.625
-
-hint+?+baseline
-max_len=256,
-train_batch_size=16,
-test_batch_size=16,
-learning_rate=8e-5,
-nohup: ignoring input
-Train-----------
-Every epoch have 125 steps.
-Epoch:  1
-step: 100
-Accuracy: 0.5548
-Up to Epoch1 Time: 0:09:32.973775
-Train loss:  1.075436095714569
-Train acc:  0.57825
-Test--------------
-Test loss:  1.064383514225483
-Test acc:  0.603125
-Epoch:  2
-step: 100
-Accuracy: 0.8020
-Up to Epoch2 Time: 0:22:04.232205
-Train loss:  0.540188021659851
-Train acc:  0.805
-Test--------------
-Test loss:  1.0543818064033985
-Test acc:  0.655859375
-
-"""
+    # 保存训练结果
+    bert_model.save_model_path = './Bert-base-trained_model/Bert-RobertA/'
+    bert_model.model.bert.save_pretrained(bert_model.save_model_path + str(save_index) + '/' + 'bert.sav')
+    bert_model.Tokenizer.save_pretrained(bert_model.save_model_path + str(save_index) + '/' + 'tokenizer.sav')
+    torch.save(bert_model.model, bert_model.save_model_path + str(save_index) + '/' + 'model.sav')

@@ -1,0 +1,30 @@
+[{"stream_name":"stdout","time":45.384331588,"data":"train_batch_size  16\n"}
+,{"stream_name":"stdout","time":45.384397221,"data":"learning_rate     3e-05\n"}
+,{"stream_name":"stdout","time":45.384405163,"data":"seed  11\n"}
+,{"stream_name":"stdout","time":50.224736915,"data":"Train-----------\n"}
+,{"stream_name":"stdout","time":50.224775964,"data":"Every epoch have 250 steps.\n"}
+,{"stream_name":"stdout","time":50.224783108,"data":"Epoch:  1\n"}
+,{"stream_name":"stdout","time":576.327118515,"data":"step: 100\n"}
+,{"stream_name":"stdout","time":576.327175633,"data":"Accuracy: 0.1900\n"}
+,{"stream_name":"stdout","time":1102.015029176,"data":"step: 200\n"}
+,{"stream_name":"stdout","time":1102.015067459,"data":"Accuracy: 0.1947\n"}
+,{"stream_name":"stdout","time":1359.667817628,"data":"Up to Epoch1 Time: 0:21:49.439063\n"}
+,{"stream_name":"stdout","time":1359.667854084,"data":"Train loss:  1.6102274041175841\n"}
+,{"stream_name":"stdout","time":1359.66786077,"data":"Train acc:  0.1975\n"}
+,{"stream_name":"stdout","time":1413.676268467,"data":"Test--------------\n"}
+,{"stream_name":"stdout","time":1413.676307347,"data":"Test loss:  1.6092878989875317\n"}
+,{"stream_name":"stdout","time":1413.676314079,"data":"Test acc:  0.28515625\n"}
+,{"stream_name":"stdout","time":1413.676318692,"data":"训练结束！\n"}
+,{"stream_name":"stdout","time":1413.67632379,"data":"Total time: 0:22:43.451720\n"}
+,{"stream_name":"stdout","time":1413.676328632,"data":"tri_avg_test_acc  0.28515625\n"}
+,{"stream_name":"stderr","time":1432.485053222,"data":"/opt/conda/lib/python3.7/site-packages/traitlets/traitlets.py:2935: FutureWarning: --Exporter.preprocessors=[\"remove_papermill_header.RemovePapermillHeader\"] for containers is deprecated in traitlets 5.0. You can pass `--Exporter.preprocessors item` ... multiple times to add items to a list.\n"}
+,{"stream_name":"stderr","time":1432.485090081,"data":"  FutureWarning,\n"}
+,{"stream_name":"stderr","time":1432.485100721,"data":"[NbConvertApp] Converting notebook __notebook__.ipynb to notebook\n"}
+,{"stream_name":"stderr","time":1433.067141815,"data":"[NbConvertApp] Writing 98749 bytes to __notebook__.ipynb\n"}
+,{"stream_name":"stderr","time":1446.085540341,"data":"/opt/conda/lib/python3.7/site-packages/traitlets/traitlets.py:2935: FutureWarning: --Exporter.preprocessors=[\"nbconvert.preprocessors.ExtractOutputPreprocessor\"] for containers is deprecated in traitlets 5.0. You can pass `--Exporter.preprocessors item` ... multiple times to add items to a list.\n"}
+,{"stream_name":"stderr","time":1446.08560153,"data":"  FutureWarning,\n"}
+,{"stream_name":"stderr","time":1446.08561071,"data":"[NbConvertApp] Converting notebook __notebook__.ipynb to html\n"}
+,{"stream_name":"stderr","time":1447.279272594,"data":"/opt/conda/lib/python3.7/site-packages/bleach/sanitizer.py:168: NoCssSanitizerWarning: 'style' attribute specified, but css_sanitizer not set.\n"}
+,{"stream_name":"stderr","time":1447.279327298,"data":"  category=NoCssSanitizerWarning,\n"}
+,{"stream_name":"stderr","time":1447.279333836,"data":"[NbConvertApp] Writing 413667 bytes to __results__.html\n"}
+]
