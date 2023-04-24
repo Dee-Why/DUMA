@@ -239,8 +239,8 @@ class DUMABert():
 
                 labels = batch[3].to(self.device)
                 logits = self.model(input_ids=input_ids.to(self.device),
-                                    token_type_ids=attention_mask.to(self.device),
-                                    attention_mask=token_type_ids.to(self.device),
+                                    attentioin_mask=attention_mask.to(self.device),
+                                    token_type_ids=token_type_ids.to(self.device),
                                     )
 
                 loss = loss_Func(logits, labels)
@@ -271,8 +271,8 @@ class DUMABert():
                     token_type_ids = test_batch[2].view(-1, test_batch[1].size(-1))
                     labels = test_batch[3].to(self.device)
                     logits = self.model(input_ids=input_ids.to(self.device),
-                                        token_type_ids=attention_mask.to(self.device),
-                                        attention_mask=token_type_ids.to(self.device),
+                                        attention_mask=attention_mask.to(self.device),
+                                        token_type_ids=token_type_ids.to(self.device),
                                         )
                     loss = loss_Func(logits, labels)
                     test_loss += loss.item()
@@ -312,8 +312,8 @@ class DUMABert():
                 token_type_ids = test_batch[2].view(-1, test_batch[1].size(-1))
                 labels = test_batch[3].to(self.device)
                 logits = self.model(input_ids=input_ids.to(self.device),
-                                    token_type_ids=attention_mask.to(self.device),
-                                    attention_mask=token_type_ids.to(self.device),
+                                    attention_mask=attention_mask.to(self.device),
+                                    token_type_ids=token_type_ids.to(self.device),
                                     )
                 loss = loss_Func(logits, labels)
                 test_loss += loss.item()
