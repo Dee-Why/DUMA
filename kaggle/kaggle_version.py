@@ -239,7 +239,7 @@ class DUMABert():
 
                 labels = batch[3].to(self.device)
                 logits = self.model(input_ids=input_ids.to(self.device),
-                                    attentioin_mask=attention_mask.to(self.device),
+                                    attention_mask=attention_mask.to(self.device),
                                     token_type_ids=token_type_ids.to(self.device),
                                     )
 
