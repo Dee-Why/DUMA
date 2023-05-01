@@ -33,3 +33,4 @@ environment:
 
 **Training cell**: in this last cell, we define all necessaey infromation like batch size, learning rate, seed, epoches and train our DUMA-Bert model and record its performance.
 
+**train_data**: The BiRidQA Chinese version dataset. Contains train of 4000x7, test of 500x7 and wiki_hint version 3.
