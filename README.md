@@ -27,5 +27,5 @@
 
 
 
-Training cell: in this last cell, we define all necessaey infromation like batch size, learning rate, seed, epoches and train our DUMA-Bert model and record its performance.
+**Training cell**: in this last cell, we define all necessaey infromation like batch size, learning rate, seed, epoches and train our DUMA-Bert model and record its performance.
 
