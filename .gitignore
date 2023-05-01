@@ -7,3 +7,6 @@ kaggle/Bert-base-trained_model
 kaggle/.ipynb_checkpoints/
 Project_template.pptx
 kaggle/8.zip
+local/
+DUMA-SOTA.py
+DUMA-avg.py

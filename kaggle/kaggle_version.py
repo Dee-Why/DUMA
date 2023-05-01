@@ -95,7 +95,7 @@ class DUMA(nn.Module):
         last_output = outputs.last_hidden_state
         qa_seq_output, p_seq_output, qa_mask, p_mask = separate_seq2(
             last_output, input_ids)
-        enc_output_qa, enc_output_p = self.duma(
+        enc_output_qa, enc_output_p = self.duma(  # DUMALayer
             qa_seq_output, p_seq_output, qa_mask, p_mask)
         fused_output = torch.cat([enc_output_qa, enc_output_p], dim=1)
         """
@@ -238,7 +238,7 @@ class DUMABert():
                 token_type_ids = batch[2].view(-1, batch[2].size(-1))
 
                 labels = batch[3].to(self.device)
-                logits = self.model(input_ids=input_ids.to(self.device),
+                logits = self.model(input_ids=input_ids.to(self.device),  # DUMA
                                     attention_mask=attention_mask.to(self.device),
                                     token_type_ids=token_type_ids.to(self.device),
                                     )
