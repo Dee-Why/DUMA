@@ -6,6 +6,8 @@
 > python: 3.9.12
 > pytorch: 1.13.1
 > transformers: 4.26.1
+> to run the code, you may need to reset the file path for reading training data
+
 
 **`separate_seq2`** function: this function is used for seperating sequence. It takes in one sequence tensor and a input token ID and seperates them into four tensors `qa_seq_output`, `p_seq_output`,` qa_mask`,` p_mask`. To do so, it seperares the input sequence through `[SEP]` token to get `qa_seq_output` that represents question and answer and `p_seq_output` that represents passage. Then, it creates two new boolen value ` qa_mask`,` p_mask` that represents maks. `qa_seq_output` is get by taking hidden states from the bigining of input sequence till `[SEP]` and not include `[CLS]` and `p_seq_output` contains the rest of sequence. With these four ouputs, it is ready to be passed on to `DUMA` class.
 
